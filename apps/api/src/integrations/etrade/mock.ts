@@ -1,0 +1,128 @@
+import type { Position, PositionSnapshot, Quote } from "@options-risk/shared";
+
+const asOf = new Date().toISOString();
+
+const positions: Position[] = [
+  {
+    accountIdKey: "mock-account",
+    symbol: "AAPL",
+    description: "APPLE INC",
+    quantity: 200,
+    type: "equity",
+    underlying: "AAPL",
+    marketValue: 45000,
+    pricePaid: 210,
+  },
+  {
+    accountIdKey: "mock-account",
+    symbol: "AAPL:2026:10:16:PUT:220",
+    description: "AAPL Oct 16 2026 220 Put",
+    quantity: -4,
+    type: "option",
+    underlying: "AAPL",
+    expiration: "2026-10-16",
+    strike: 220,
+    optionType: "PUT",
+    marketValue: -1800,
+    pricePaid: 4.1,
+  },
+  {
+    accountIdKey: "mock-account",
+    symbol: "SPY:2026:12:18:CALL:580",
+    description: "SPY Dec 18 2026 580 Call",
+    quantity: 2,
+    type: "option",
+    underlying: "SPY",
+    expiration: "2026-12-18",
+    strike: 580,
+    optionType: "CALL",
+    marketValue: 2400,
+    pricePaid: 11.2,
+  },
+  {
+    accountIdKey: "mock-account",
+    symbol: "NVDA:2026:11:20:PUT:160",
+    description: "NVDA Nov 20 2026 160 Put",
+    quantity: -3,
+    type: "option",
+    underlying: "NVDA",
+    expiration: "2026-11-20",
+    strike: 160,
+    optionType: "PUT",
+    marketValue: -960,
+    pricePaid: 3.4,
+  },
+];
+
+const quotes: Quote[] = [
+  {
+    symbol: "AAPL",
+    last: 225,
+    bid: 224.9,
+    ask: 225.1,
+    delta: 1,
+    gamma: 0,
+    theta: 0,
+    vega: 0,
+    asOf,
+  },
+  {
+    symbol: "AAPL:2026:10:16:PUT:220",
+    last: 4.5,
+    bid: 4.4,
+    ask: 4.6,
+    iv: 0.24,
+    delta: -0.32,
+    gamma: 0.018,
+    theta: -0.04,
+    vega: 0.22,
+    daysToExpiration: 19,
+    asOf,
+  },
+  {
+    symbol: "SPY",
+    last: 572,
+    asOf,
+  },
+  {
+    symbol: "SPY:2026:12:18:CALL:580",
+    last: 12,
+    bid: 11.8,
+    ask: 12.2,
+    iv: 0.16,
+    delta: 0.41,
+    gamma: 0.012,
+    theta: -0.06,
+    vega: 0.31,
+    daysToExpiration: 82,
+    asOf,
+  },
+  {
+    symbol: "NVDA",
+    last: 178,
+    asOf,
+  },
+  {
+    symbol: "NVDA:2026:11:20:PUT:160",
+    last: 3.2,
+    bid: 3.1,
+    ask: 3.3,
+    iv: 0.38,
+    delta: -0.22,
+    gamma: 0.011,
+    theta: -0.05,
+    vega: 0.18,
+    daysToExpiration: 54,
+    asOf,
+  },
+];
+
+export function mockSnapshot(): PositionSnapshot {
+  return {
+    asOf: new Date().toISOString(),
+    source: "mock",
+    accountIdKey: "mock-account",
+    positions,
+    quotes,
+  };
+}

@@ -1,0 +1,23 @@
+{
+  "name": "options-risk",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Options trading risk from last-known E*TRADE position state",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w @options-risk/api\" \"npm run dev -w @options-risk/web\"",
+    "dev:api": "npm run dev -w @options-risk/api",
+    "dev:web": "npm run dev -w @options-risk/web",
+    "build": "npm run build -w @options-risk/shared && npm run build -w @options-risk/api && npm run build -w @options-risk/web"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
