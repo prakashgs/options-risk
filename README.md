@@ -7,7 +7,7 @@ apps/web          TypeScript React client
 apps/api          TypeScript Fastify server
   agents/market-data   positions + quotes → snapshot
   agents/risk          Greeks / $delta from snapshot
-  agents/screener      reserved; not mixed into risk
+  agents/screener      1σ 10-wide put credits, IV, RSI, 200D SMA
   integrations/etrade  OAuth 1.0a + REST
 packages/shared   shared types (the contract between future agents)
 ```
@@ -43,6 +43,32 @@ Refresh then:
 5. Risk reads only that file
 
 Tokens are stored in `data/etrade-tokens.json` (gitignored).
+
+## Screener
+
+The screener is a separate agent from risk. It does not read the position snapshot. It scores a watchlist of underlyings (currently NBIS, APP, DRAM, SKHY, MNDY, HUBS, INTU, DXYZ, AVGO, SMH) and the table defaults to **highest Options ROI % first**.
+
+| Column | Meaning |
+| --- | --- |
+| Options ROI % | Dollar credit on the 10-wide 1σ put spread ÷ $1000 |
+| Last / Change % | Equity last vs previous close |
+| RSI | 14-period Wilder RSI on daily closes |
+| 200D SMA | Simple moving average of the last 200 daily closes |
+| LastVs200D | `(last − 200D SMA) / 200D SMA` |
+| Spread | `(short strike, long strike)` — always 10 points wide |
+| Implied Vol | IV of the short put (~30 DTE, nearest 1σ OTM) |
+
+**Spread and ROI**
+
+1. Take the expiry closest to 30 days.
+2. Estimate 1σ down as `spot × (1 − ATM put IV × √(DTE/365))`.
+3. Pick the listed 10-wide put credit whose short strike is closest to that 1σ level.
+4. Credit is `short last − long last` from the option chain (not mid).
+5. ROI % is `(credit × 100) / 1000`.
+
+Equity quotes, expirations, chains, and option last/IV come from E*TRADE. RSI and the 200-day SMA come from daily closes (Yahoo chart). Names without 200 sessions show a blank 200D SMA / LastVs200D.
+
+`MOCK_MODE=true` returns sample screener rows so the table still renders without OAuth.
 
 ## Later agents
 
