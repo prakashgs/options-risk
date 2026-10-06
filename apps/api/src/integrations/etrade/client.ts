@@ -49,6 +49,13 @@ interface QuoteData {
   Product?: { symbol?: string };
   All?: {
     lastTrade?: number;
+    previousClose?: number;
+    previousDayClose?: number;
+    prevClose?: number;
+    close?: number;
+    changeClose?: number;
+    changeClosePercentage?: number;
+    percentChange?: number;
     bid?: number;
     ask?: number;
     Option?: {
@@ -110,11 +117,15 @@ function mapPosition(accountIdKey: string, row: PortfolioPosition): Position {
 
 function mapQuote(row: QuoteData): Quote {
   const option = row.All?.Option;
+  const all = row.All;
   return {
     symbol: row.Product?.symbol ?? "",
-    last: Number(row.All?.lastTrade ?? row.Intraday?.lastTrade ?? row.All?.Option?.lastTrade ?? 0),
-    bid: row.All?.bid,
-    ask: row.All?.ask,
+    last: Number(all?.lastTrade ?? row.Intraday?.lastTrade ?? option?.lastTrade ?? 0),
+    previousClose: all?.previousClose ?? all?.previousDayClose ?? all?.prevClose,
+    changeClose: all?.changeClose,
+    changeClosePercentage: all?.changeClosePercentage ?? all?.percentChange,
+    bid: all?.bid,
+    ask: all?.ask,
     iv: option?.impliedVolatility,
     delta: option?.delta,
     gamma: option?.gamma,
@@ -150,4 +161,78 @@ export async function fetchQuotes(symbols: string[]): Promise<Quote[]> {
     quotes.push(...asArray(data?.QuoteResponse?.QuoteData).map(mapQuote));
   }
   return quotes;
+}
+
+interface ExpireDateResponse {
+  OptionExpireDateResponse?: {
+    ExpirationDate?: Array<{ year?: number; month?: number; day?: number }> | { year?: number; month?: number; day?: number };
+  };
+}
+
+interface OptionChainResponse {
+  OptionChainResponse?: {
+    OptionPair?: ChainPair[] | ChainPair;
+  };
+}
+
+interface ChainPair {
+  Put?: ChainPutRaw;
+  Call?: ChainPutRaw;
+}
+
+interface ChainPutRaw {
+  strikePrice?: number;
+  bid?: number;
+  ask?: number;
+  lastPrice?: number;
+  lastTrade?: number;
+  last?: number;
+  OptionGreeks?: { iv?: number; impliedVolatility?: number };
+}
+
+export interface ChainPut {
+  strike: number;
+  bid?: number;
+  ask?: number;
+  last?: number;
+  iv?: number;
+}
+
+function mapChainPut(raw: ChainPutRaw | undefined): ChainPut | undefined {
+  if (raw?.strikePrice == null) return undefined;
+  const iv = raw.OptionGreeks?.iv ?? raw.OptionGreeks?.impliedVolatility;
+  const bid = raw.bid != null ? Number(raw.bid) : undefined;
+  const ask = raw.ask != null ? Number(raw.ask) : undefined;
+  const last = raw.lastPrice ?? raw.lastTrade ?? raw.last;
+  return {
+    strike: Number(raw.strikePrice),
+    bid: bid != null && Number.isFinite(bid) ? bid : undefined,
+    ask: ask != null && Number.isFinite(ask) ? ask : undefined,
+    last: last != null && Number.isFinite(Number(last)) ? Number(last) : undefined,
+    iv: iv != null ? Number(iv) : undefined,
+  };
+}
+
+export async function fetchExpireDates(symbol: string): Promise<Array<{ year: number; month: number; day: number }>> {
+  const data = await etradeGet<ExpireDateResponse>(
+    `/v1/market/optionexpiredate.json?symbol=${encodeURIComponent(symbol)}&expiryType=ALL`,
+  );
+  return asArray(data?.OptionExpireDateResponse?.ExpirationDate)
+    .map((row) => ({ year: Number(row.year), month: Number(row.month), day: Number(row.day) }))
+    .filter((row) => row.year && row.month && row.day);
+}
+
+export async function fetchPutChain(
+  symbol: string,
+  expiry: { year: number; month: number; day: number },
+  nearStrike?: number,
+): Promise<ChainPut[]> {
+  const near = nearStrike != null ? `&strikePriceNear=${encodeURIComponent(String(nearStrike))}` : "";
+  const data = await etradeGet<OptionChainResponse>(
+    `/v1/market/optionchains.json?symbol=${encodeURIComponent(symbol)}&expiryYear=${expiry.year}&expiryMonth=${expiry.month}&expiryDay=${expiry.day}&chainType=PUT&noOfStrikes=50${near}`,
+  );
+  return asArray(data?.OptionChainResponse?.OptionPair)
+    .map((pair) => mapChainPut(pair.Put))
+    .filter((put): put is ChainPut => Boolean(put))
+    .sort((a, b) => a.strike - b.strike);
 }

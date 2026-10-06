@@ -22,5 +22,5 @@ export async function registerDomainRoutes(app: FastifyInstance) {
     return { summary };
   });
 
-  app.get("/api/screener", async () => ({ screener: runScreener() }));
+  app.get("/api/screener", async () => ({ screener: await runScreener() }));
 }

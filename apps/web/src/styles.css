@@ -136,6 +136,19 @@ section {
   overflow-x: auto;
 }
 
+.table-wrap.screener table {
+  min-width: 0;
+}
+
+.table-wrap.screener th:nth-child(1),
+.table-wrap.screener td:nth-child(1) {
+  min-width: 0;
+}
+
+.table-wrap.screener th.sorted {
+  color: var(--accent);
+}
+
 table {
   width: 100%;
   min-width: 980px;

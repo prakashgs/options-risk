@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AuthStatus, Position, PositionSnapshot, Quote, RiskSummary, ScreenerResult, UnderlyingRisk } from "@options-risk/shared";
+import type { AuthStatus, Position, PositionSnapshot, Quote, RiskSummary, ScreenerIdea, ScreenerResult, UnderlyingRisk } from "@options-risk/shared";
 import { api } from "./api";
 
 function money(n: number, digits = 0): string {
@@ -169,11 +169,6 @@ export function App() {
       </section>
 
       <section className="metrics">
-        <Metric label="Net delta" value={risk ? num(risk.netDelta, 0) : "—"} />
-        <Metric label="Dollar delta" value={risk ? money(risk.dollarDelta) : "—"} />
-        <Metric label="Gamma" value={risk ? num(risk.gamma, 2) : "—"} />
-        <Metric label="Theta / day" value={risk ? money(risk.theta) : "—"} />
-        <Metric label="Vega" value={risk ? num(risk.vega, 0) : "—"} />
         <Metric label="Mark" value={risk ? money(risk.marketValue) : "—"} />
       </section>
 
@@ -183,8 +178,8 @@ export function App() {
       </section>
 
       <section>
-        <h2>Screener agent</h2>
-        <p className="muted">{screener?.note}</p>
+        <h2>Screener:</h2>
+        <ScreenerTable screener={screener} />
       </section>
     </div>
   );
@@ -384,6 +379,53 @@ function RiskTable({
         })}
       </tbody>
     </table>
+    </div>
+  );
+}
+
+function byRoiDesc(ideas: ScreenerIdea[]) {
+  return [...ideas].sort((a, b) => (b.optionsRoiPct ?? Number.NEGATIVE_INFINITY) - (a.optionsRoiPct ?? Number.NEGATIVE_INFINITY));
+}
+
+function ScreenerTable({ screener }: { screener: ScreenerResult | null }) {
+  const names = byRoiDesc(screener?.ideas ?? []);
+  if (names.length === 0) {
+    return <p className="muted">No names from the screener agent yet.</p>;
+  }
+  return (
+    <div className="table-wrap screener">
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th className="num sorted">Options ROI % ↓</th>
+            <th className="num">Last</th>
+            <th className="num">Change %</th>
+            <th className="num">RSI</th>
+            <th className="num">200D SMA</th>
+            <th className="num">LastVs200D</th>
+            <th className="num">Spread</th>
+            <th className="num">Implied Vol</th>
+          </tr>
+        </thead>
+        <tbody>
+          {names.map((idea) => (
+            <tr key={idea.symbol}>
+              <td>{idea.symbol}</td>
+              <td className="num">{idea.optionsRoiPct != null ? pct(idea.optionsRoiPct) : "—"}</td>
+              <td className="num">{idea.last != null ? money(idea.last, 2) : "—"}</td>
+              <td className={signedClass(idea.changePct)}>{idea.changePct != null ? pct(idea.changePct) : "—"}</td>
+              <td className="num">{idea.rsi != null ? num(idea.rsi, 1) : "—"}</td>
+              <td className="num">{idea.sma200 != null ? money(idea.sma200, 2) : "—"}</td>
+              <td className={signedClass(idea.lastVs200D)}>{idea.lastVs200D != null ? pct(idea.lastVs200D) : "—"}</td>
+              <td className="num">
+                {idea.strike1 != null && idea.strike2 != null ? `(${idea.strike1}, ${idea.strike2})` : "—"}
+              </td>
+              <td className="num">{idea.impliedVol != null ? pct(idea.impliedVol) : "—"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

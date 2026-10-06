@@ -20,6 +20,9 @@ export interface Position {
 export interface Quote {
   symbol: string;
   last: number;
+  previousClose?: number;
+  changeClose?: number;
+  changeClosePercentage?: number;
   bid?: number;
   ask?: number;
   iv?: number;
@@ -80,6 +83,15 @@ export interface AuthStatus {
 
 export interface ScreenerIdea {
   symbol: string;
+  last?: number;
+  changePct?: number;
+  strike1?: number;
+  strike2?: number;
+  optionsRoiPct?: number;
+  impliedVol?: number;
+  rsi?: number;
+  sma200?: number;
+  lastVs200D?: number;
   thesis: string;
   score: number;
 }
