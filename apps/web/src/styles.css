@@ -21,6 +21,7 @@ body {
 
 button,
 input,
+select,
 code {
   font-family: "SF Mono", ui-monospace, Menlo, monospace;
 }
@@ -94,7 +95,8 @@ h1 {
 }
 
 button,
-input {
+input,
+select {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--line);
@@ -130,6 +132,41 @@ section {
   font-family: "SF Mono", ui-monospace, Menlo, monospace;
   font-size: 1.35rem;
   margin: 0;
+}
+
+.risk-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 12px;
+  flex-wrap: wrap;
+}
+
+.risk-toolbar input,
+.risk-toolbar select {
+  width: min(240px, 100%);
+}
+
+.risk-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.risk-totals {
+  display: flex;
+  gap: 24px;
+  align-items: baseline;
+}
+
+.risk-total {
+  text-align: right;
+}
+
+.risk-total .metric {
+  font-size: 1.2rem;
 }
 
 .table-wrap {

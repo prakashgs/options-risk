@@ -46,7 +46,7 @@ Tokens are stored in `data/etrade-tokens.json` (gitignored).
 
 ## Screener
 
-The screener is a separate agent from risk. It does not read the position snapshot. It scores a watchlist of underlyings (currently NBIS, APP, DRAM, SKHY, MNDY, HUBS, INTU, DXYZ, AVGO, SMH) and the table defaults to **highest Options ROI % first**.
+The screener is a separate agent from risk. It does not read the position snapshot. It scores a watchlist of underlyings (currently NBIS, APP, DRAM, SKHY, MNDY, HUBS, INTU, DXYZ, AVGO, SMH, TEAM) and the table defaults to **highest Options ROI % first**.
 
 | Column | Meaning |
 | --- | --- |

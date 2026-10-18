@@ -3,7 +3,7 @@ import { config } from "../../config.js";
 import { fetchExpireDates, fetchPutChain, fetchQuotes, type ChainPut } from "../../integrations/etrade/client.js";
 import { fetchDailyCloses, rsi, sma } from "../../integrations/yahoo/history.js";
 
-const WATCHLIST = ["NBIS", "APP", "DRAM", "SKHY", "MNDY", "HUBS", "INTU", "DXYZ", "AVGO", "SMH"];
+const WATCHLIST = ["NBIS", "APP", "DRAM", "SKHY", "MNDY", "HUBS", "INTU", "DXYZ", "AVGO", "SMH", "TEAM"];
 const TARGET_DTE = 30;
 const ROI_CAPITAL = 1000;
 const SPREAD_WIDTH = 10;
@@ -198,6 +198,7 @@ export async function runScreener(): Promise<ScreenerResult> {
         mockIdea("DXYZ", 40, 39, 0.7, 0.8, 30, 20, 45, 36),
         mockIdea("AVGO", 180, 178, 0.35, 1.3, 160, 150, 64, 155),
         mockIdea("SMH", 280, 278, 0.3, 1.0, 260, 250, 60, 240),
+        mockIdea("TEAM", 200, 198, 0.5, 1.2, 170, 160, 52, 185),
       ]),
       note: "Mock screener. Connect E*TRADE for live last, change, IV, and put-spread ROI.",
     };

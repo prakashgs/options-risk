@@ -300,6 +300,136 @@ function optionGroups(snapshot: PositionSnapshot | null): { underlying: string; 
     }));
 }
 
+function lotAtStrike(
+  lots: Array<{ strike: number; qty: number }>,
+  strike: number,
+): { strike: number; qty: number } | undefined {
+  return lots.find((lot) => lot.qty > 0 && Math.abs(lot.strike - strike) < 0.01);
+}
+
+function pickHedge(
+  kind: "CALL" | "PUT",
+  shortStrike: number,
+  longs: Array<{ strike: number; qty: number }>,
+): { strike: number; qty: number } | undefined {
+  const available = longs.filter((leg) => leg.qty > 0);
+  if (available.length === 0) return undefined;
+  const preferred = kind === "PUT" ? [shortStrike - 10, shortStrike - 5] : [shortStrike + 10, shortStrike + 5];
+  for (const strike of preferred) {
+    const exact = lotAtStrike(available, strike);
+    if (exact) return exact;
+  }
+  const protective =
+    kind === "PUT"
+      ? available.filter((leg) => leg.strike < shortStrike)
+      : available.filter((leg) => leg.strike > shortStrike);
+  const pool = protective.length > 0 ? protective : available;
+  if (protective.length > 0) {
+    return kind === "PUT"
+      ? pool.reduce((best, leg) => (leg.strike > best.strike ? leg : best))
+      : pool.reduce((best, leg) => (leg.strike < best.strike ? leg : best));
+  }
+  return pool.reduce((best, leg) =>
+    Math.abs(leg.strike - shortStrike) < Math.abs(best.strike - shortStrike) ? leg : best,
+  );
+}
+
+function hedgeRank(kind: "CALL" | "PUT", shortStrike: number, longs: Array<{ strike: number; qty: number }>): number {
+  const target10 = kind === "PUT" ? shortStrike - 10 : shortStrike + 10;
+  const target5 = kind === "PUT" ? shortStrike - 5 : shortStrike + 5;
+  if (lotAtStrike(longs, target10)) return 0;
+  if (lotAtStrike(longs, target5)) return 1;
+  return 2;
+}
+
+function spreadWidthCapital(legs: Position[]): { capital: number; width5: number; width10: number } {
+  const empty = { capital: 0, width5: 0, width10: 0 };
+  const options = legs.filter((leg) => leg.type === "option" && leg.strike != null && leg.optionType);
+  if (options.length === 0) return empty;
+  const kind = options[0].optionType;
+  if (kind !== "CALL" && kind !== "PUT") return empty;
+  const shorts = options
+    .filter((leg) => leg.quantity < 0 && leg.strike != null)
+    .map((leg) => ({ strike: leg.strike as number, qty: -leg.quantity }));
+  const longs = options
+    .filter((leg) => leg.quantity > 0 && leg.strike != null)
+    .map((leg) => ({ strike: leg.strike as number, qty: leg.quantity }));
+  if (shorts.length === 0 || longs.length === 0) return empty;
+  shorts.sort((a, b) => {
+    const rank = hedgeRank(kind, a.strike, longs) - hedgeRank(kind, b.strike, longs);
+    if (rank !== 0) return rank;
+    return kind === "PUT" ? b.strike - a.strike : a.strike - b.strike;
+  });
+
+  const totals = { capital: 0, width5: 0, width10: 0 };
+  for (const short of shorts) {
+    while (short.qty > 0) {
+      const hedge = pickHedge(kind, short.strike, longs);
+      if (!hedge) break;
+      const matched = Math.min(short.qty, hedge.qty);
+      const width = Math.abs(short.strike - hedge.strike);
+      totals.capital += width * 100 * matched;
+      if (Math.abs(width - 5) < 0.01) totals.width5 += matched;
+      if (Math.abs(width - 10) < 0.01) totals.width10 += matched;
+      short.qty -= matched;
+      hedge.qty -= matched;
+    }
+  }
+  return totals;
+}
+
+function totalSpreadRisk(groups: { options: Position[] }[]): { capital: number; width5: number; width10: number } {
+  const bySpread = new Map<string, Position[]>();
+  for (const group of groups) {
+    for (const position of group.options) {
+      const key = `${position.underlying ?? ""}|${position.expiration ?? ""}|${position.optionType ?? ""}`;
+      if (position.optionType !== "PUT") continue;
+      const legs = bySpread.get(key) ?? [];
+      legs.push(position);
+      bySpread.set(key, legs);
+    }
+  }
+  const totals = { capital: 0, width5: 0, width10: 0 };
+  for (const legs of bySpread.values()) {
+    const part = spreadWidthCapital(legs);
+    totals.capital += part.capital;
+    totals.width5 += part.width5;
+    totals.width10 += part.width10;
+  }
+  return totals;
+}
+
+type RiskSort = "default" | "risk-desc" | "risk-asc";
+
+function putRiskForGroup(group: { options: Position[] }): number {
+  return totalSpreadRisk([group]).capital;
+}
+
+function sortRiskGroups(
+  groups: { underlying: string; shares: number; options: Position[] }[],
+  sort: RiskSort,
+) {
+  const copy = [...groups];
+  if (sort === "default") {
+    return copy.sort((a, b) => a.underlying.localeCompare(b.underlying));
+  }
+  return copy.sort((a, b) => {
+    const delta = putRiskForGroup(a) - putRiskForGroup(b);
+    const ordered = sort === "risk-desc" ? -delta : delta;
+    return ordered !== 0 ? ordered : a.underlying.localeCompare(b.underlying);
+  });
+}
+
+function matchesSymbolFilter(group: { underlying: string; options: Position[] }, query: string): boolean {
+  const needle = query.trim().toUpperCase();
+  if (!needle) return true;
+  if (group.underlying.toUpperCase().includes(needle)) return true;
+  return group.options.some((position) => {
+    const haystack = `${position.symbol} ${position.description} ${position.underlying ?? ""}`.toUpperCase();
+    return haystack.includes(needle);
+  });
+}
+
 function RiskTable({
   snapshot,
   byUnderlying,
@@ -307,7 +437,14 @@ function RiskTable({
   snapshot: PositionSnapshot | null;
   byUnderlying: UnderlyingRisk[];
 }) {
+  const [symbolFilter, setSymbolFilter] = useState("");
+  const [riskSort, setRiskSort] = useState<RiskSort>("default");
   const groups = optionGroups(snapshot);
+  const visible = sortRiskGroups(
+    groups.filter((group) => matchesSymbolFilter(group, symbolFilter)),
+    riskSort,
+  );
+  const spreadRisk = totalSpreadRisk(visible);
   const summary = new Map(byUnderlying.map((row) => [row.underlying, row]));
   const quotes = new Map((snapshot?.quotes ?? []).map((quote) => [quote.symbol, quote]));
   const spreadStatus = spreadStatusBySymbol(snapshot?.positions ?? [], quotes);
@@ -315,11 +452,47 @@ function RiskTable({
   if (!snapshot) {
     return <p className="muted">No snapshot yet. Refresh positions to create one.</p>;
   }
-  if (groups.length === 0) {
-    return <p className="muted">No option positions in the last-known book.</p>;
-  }
 
   return (
+    <>
+      <div className="risk-toolbar">
+        <div className="risk-controls">
+          <input
+            aria-label="Filter risk table by symbol"
+            value={symbolFilter}
+            onChange={(e) => setSymbolFilter(e.target.value)}
+            placeholder="Filter by symbol"
+          />
+          <select
+            aria-label="Sort risk table"
+            value={riskSort}
+            onChange={(e) => setRiskSort(e.target.value as RiskSort)}
+          >
+            <option value="default">Default</option>
+            <option value="risk-desc">Risk high to low</option>
+            <option value="risk-asc">Risk low to high</option>
+          </select>
+        </div>
+        <div className="risk-totals">
+          <article className="risk-total">
+            <p className="kicker">Total risk</p>
+            <p className="metric">{money(spreadRisk.capital)}</p>
+          </article>
+          <article className="risk-total">
+            <p className="kicker">5-wide</p>
+            <p className="metric">{spreadRisk.width5}</p>
+          </article>
+          <article className="risk-total">
+            <p className="kicker">10-wide</p>
+            <p className="metric">{spreadRisk.width10}</p>
+          </article>
+        </div>
+      </div>
+      {groups.length === 0 ? (
+        <p className="muted">No option positions in the last-known book.</p>
+      ) : visible.length === 0 ? (
+        <p className="muted">No positions match “{symbolFilter.trim()}”.</p>
+      ) : (
     <div className="table-wrap">
     <table>
       <thead>
@@ -336,8 +509,9 @@ function RiskTable({
         </tr>
       </thead>
       <tbody>
-        {groups.flatMap((group) => {
+        {visible.flatMap((group) => {
           const totals = summary.get(group.underlying);
+          const putRisk = putRiskForGroup(group);
           const header = (
             <tr className="group" key={`${group.underlying}-head`}>
               <td colSpan={9}>
@@ -346,11 +520,15 @@ function RiskTable({
                     {group.underlying}
                     {group.shares ? <span className="muted"> · {group.shares} sh</span> : null}
                   </span>
-                  {totals ? (
-                    <span className="muted">
-                      Δ {num(totals.netDelta, 0)} · {money(totals.dollarDelta)} · Θ {money(totals.theta)}
-                    </span>
-                  ) : null}
+                  <span className="muted">
+                    Risk {money(putRisk)}
+                    {totals ? (
+                      <>
+                        {" "}
+                        · Δ {num(totals.netDelta, 0)} · {money(totals.dollarDelta)} · Θ {money(totals.theta)}
+                      </>
+                    ) : null}
+                  </span>
                 </div>
               </td>
             </tr>
@@ -380,6 +558,8 @@ function RiskTable({
       </tbody>
     </table>
     </div>
+      )}
+    </>
   );
 }
 
