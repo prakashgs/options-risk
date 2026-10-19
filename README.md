@@ -1,6 +1,6 @@
 # Options risk
 
-Risk view for an options book, computed from the **last known position snapshot**. Live E*TRADE calls update that snapshot; the risk engine never depends on a live request succeeding.
+Risk view for an options book, computed from the **last known position snapshot**. Live market data calls update that snapshot; the risk engine never depends on a live request succeeding.
 
 ```
 apps/web          TypeScript React client
@@ -46,7 +46,7 @@ Tokens are stored in `data/etrade-tokens.json` (gitignored).
 
 ## Screener
 
-The screener is a separate agent from risk. It does not read the position snapshot. It scores a watchlist of underlyings (currently NBIS, APP, DRAM, SKHY, MNDY, HUBS, INTU, DXYZ, AVGO, SMH, TEAM) and the table defaults to **highest Options ROI % first**.
+The screener is a separate agent from risk. It does not read the position snapshot. It scores a watchlist of underlyings.
 
 | Column | Meaning |
 | --- | --- |
