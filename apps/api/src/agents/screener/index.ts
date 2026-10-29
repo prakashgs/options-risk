@@ -1,9 +1,13 @@
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { ScreenerIdea, ScreenerResult } from "@options-risk/shared";
 import { config } from "../../config.js";
 import { fetchExpireDates, fetchPutChain, fetchQuotes, type ChainPut } from "../../integrations/etrade/client.js";
 import { fetchDailyCloses, rsi, sma } from "../../integrations/yahoo/history.js";
 
-const WATCHLIST = ["NBIS", "APP", "DRAM", "SKHY", "MNDY", "HUBS", "INTU", "DXYZ", "AVGO", "SMH", "TEAM"];
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../../");
+const WATCHLIST_FILE = "data/screener-watchlist.json";
 const TARGET_DTE = 30;
 const ROI_CAPITAL = 1000;
 const SPREAD_WIDTH = 10;
@@ -116,6 +120,35 @@ function mockIdea(
   };
 }
 
+function loadWatchlist(): { symbols: string[] } | { error: string } {
+  const path = resolve(repoRoot, WATCHLIST_FILE);
+  let raw: string;
+  try {
+    raw = readFileSync(path, "utf8");
+  } catch {
+    return { error: `Screener watchlist is missing. Add a JSON string array at ${WATCHLIST_FILE}.` };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { error: `Screener watchlist at ${WATCHLIST_FILE} is not valid JSON. Expected a string array.` };
+  }
+  if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string" || item.trim() === "")) {
+    return { error: `Screener watchlist at ${WATCHLIST_FILE} must be a JSON array of symbol strings.` };
+  }
+  return { symbols: parsed.map((item) => item.trim()) };
+}
+
+function emptyWatchlist(note: string): ScreenerResult {
+  return {
+    generatedAt: new Date().toISOString(),
+    status: "stub",
+    ideas: [],
+    note,
+  };
+}
+
 function sortByRoi(ideas: ScreenerIdea[]): ScreenerIdea[] {
   return [...ideas].sort((a, b) => (b.optionsRoiPct ?? Number.NEGATIVE_INFINITY) - (a.optionsRoiPct ?? Number.NEGATIVE_INFINITY));
 }
@@ -183,29 +216,20 @@ async function screenSymbol(symbol: string): Promise<ScreenerIdea> {
 }
 
 export async function runScreener(): Promise<ScreenerResult> {
+  const watchlist = loadWatchlist();
+  if ("error" in watchlist) return emptyWatchlist(watchlist.error);
+
   if (config.mockMode) {
     return {
       generatedAt: new Date().toISOString(),
       status: "ready",
-      ideas: sortByRoi([
-        mockIdea("NBIS", 232, 228, 0.72, 1.85, 180, 170, 62, 190),
-        mockIdea("APP", 540, 548, 0.55, 2.1, 490, 480, 48, 510),
-        mockIdea("DRAM", 52, 50.5, 0.8, 1.2, 40, 30, 71, 38),
-        mockIdea("SKHY", 148, 146, 0.28, 0.9, 140, 130, 55, 142),
-        mockIdea("MNDY", 250, 248, 0.45, 1.4, 220, 210, 40, 260),
-        mockIdea("HUBS", 480, 485, 0.4, 1.6, 430, 420, 35, 520),
-        mockIdea("INTU", 650, 645, 0.28, 1.1, 610, 600, 58, 600),
-        mockIdea("DXYZ", 40, 39, 0.7, 0.8, 30, 20, 45, 36),
-        mockIdea("AVGO", 180, 178, 0.35, 1.3, 160, 150, 64, 155),
-        mockIdea("SMH", 280, 278, 0.3, 1.0, 260, 250, 60, 240),
-        mockIdea("TEAM", 200, 198, 0.5, 1.2, 170, 160, 52, 185),
-      ]),
+      ideas: sortByRoi(watchlist.symbols.map((symbol) => mockIdea(symbol, 100, 98, 0.4, 1.2, 90, 80, 50, 95))),
       note: "Mock screener. Connect E*TRADE for live last, change, IV, and put-spread ROI.",
     };
   }
 
   const ideas: ScreenerIdea[] = [];
-  for (const symbol of WATCHLIST) {
+  for (const symbol of watchlist.symbols) {
     try {
       ideas.push(await screenSymbol(symbol));
     } catch {

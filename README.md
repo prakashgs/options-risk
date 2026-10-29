@@ -46,7 +46,7 @@ Tokens are stored in `data/etrade-tokens.json` (gitignored).
 
 ## Screener
 
-The screener is a separate agent from risk. It does not read the position snapshot. It scores a watchlist of underlyings.
+The screener is a separate agent from risk. It does not read the position snapshot. It scores symbols from `data/screener-watchlist.json`, which is gitignored, and the table defaults to **highest Options ROI % first**.
 
 | Column | Meaning |
 | --- | --- |
