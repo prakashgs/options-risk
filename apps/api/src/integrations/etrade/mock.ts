@@ -124,5 +124,6 @@ export function mockSnapshot(): PositionSnapshot {
     accountIdKey: "mock-account",
     positions,
     quotes,
+    earnings: [{ symbol: "AAPL", date: "2026-10-30", estimated: false }],
   };
 }

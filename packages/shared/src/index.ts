@@ -34,12 +34,20 @@ export interface Quote {
   asOf: string;
 }
 
+// A symbol's next earnings date for the rest of the app, including whether that date is estimated.
+export interface EarningsFlag {
+  symbol: string;
+  date: string;
+  estimated: boolean;
+}
+
 export interface PositionSnapshot {
   asOf: string;
   source: SnapshotSource;
   accountIdKey?: string;
   positions: Position[];
   quotes: Quote[];
+  earnings?: EarningsFlag[];
 }
 
 export interface UnderlyingRisk {
