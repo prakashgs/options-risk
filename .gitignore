@@ -2,6 +2,7 @@ node_modules
 dist
 .env
 data/*.json
+data/screener-watchlist.json
 !data/.gitkeep
 .DS_Store
 *.log
