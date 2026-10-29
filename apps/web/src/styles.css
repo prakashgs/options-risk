@@ -252,6 +252,16 @@ tr.group td {
   align-items: baseline;
 }
 
+.earnings {
+  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: 0.75rem;
+}
+
+.earnings.soon {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .top {
     display: block;

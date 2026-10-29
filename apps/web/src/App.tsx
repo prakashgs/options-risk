@@ -17,6 +17,31 @@ function expiryDate(iso?: string): string {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function daysUntil(iso: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const target = new Date(year, month - 1, day);
+  if (target.getFullYear() !== year || target.getMonth() !== month - 1 || target.getDate() !== day) return null;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+function upcomingEarnings(
+  earnings: PositionSnapshot["earnings"],
+  underlying: string,
+): { label: string; soon: boolean } | null {
+  const flag = earnings?.find((row) => row.symbol === underlying);
+  if (!flag) return null;
+  const days = daysUntil(flag.date);
+  if (days == null || days < 0) return null;
+  const [, month, day] = flag.date.split("-");
+  return { label: `Earnings ${Number(month)}/${Number(day)}`, soon: days <= 7 };
+}
+
 function signedClass(n: number | undefined): string {
   if (n == null || n === 0) return "num";
   return n > 0 ? "num gain" : "num loss";
@@ -512,12 +537,16 @@ function RiskTable({
         {visible.flatMap((group) => {
           const totals = summary.get(group.underlying);
           const putRisk = putRiskForGroup(group);
+          const earnings = upcomingEarnings(snapshot.earnings, group.underlying);
           const header = (
             <tr className="group" key={`${group.underlying}-head`}>
               <td colSpan={9}>
                 <div className="group-bar">
                   <span>
                     {group.underlying}
+                    {earnings ? (
+                      <span className={earnings.soon ? "earnings soon" : "earnings"}> · {earnings.label}</span>
+                    ) : null}
                     {group.shares ? <span className="muted"> · {group.shares} sh</span> : null}
                   </span>
                   <span className="muted">

@@ -1,8 +1,9 @@
-import type { PositionSnapshot } from "@options-risk/shared";
+import type { EarningsFlag, PositionSnapshot } from "@options-risk/shared";
 import { config } from "../../config.js";
 import { store } from "../../store.js";
 import { fetchPortfolio, fetchQuotes, listAccountIdKeys } from "../../integrations/etrade/client.js";
 import { mockSnapshot } from "../../integrations/etrade/mock.js";
+import { fetchEarningsFlags } from "../../integrations/yahoo/earnings.js";
 
 function quoteSymbols(positions: PositionSnapshot["positions"]): string[] {
   const symbols = new Set<string>();
@@ -11,6 +12,22 @@ function quoteSymbols(positions: PositionSnapshot["positions"]): string[] {
     if (p.underlying) symbols.add(p.underlying);
   }
   return [...symbols];
+}
+
+function underlyingSymbols(positions: PositionSnapshot["positions"]): string[] {
+  const symbols = new Set<string>();
+  for (const position of positions) {
+    if (position.underlying) symbols.add(position.underlying);
+  }
+  return [...symbols];
+}
+
+async function earningsFor(positions: PositionSnapshot["positions"]): Promise<EarningsFlag[]> {
+  try {
+    return await fetchEarningsFlags(underlyingSymbols(positions));
+  } catch {
+    return [];
+  }
 }
 
 export async function refreshFromEtrade(): Promise<PositionSnapshot> {
@@ -26,12 +43,14 @@ export async function refreshFromEtrade(): Promise<PositionSnapshot> {
   }
   const positions = (await Promise.all(accounts.map((id) => fetchPortfolio(id)))).flat();
   const quotes = await fetchQuotes(quoteSymbols(positions));
+  const earnings = await earningsFor(positions);
   const snapshot: PositionSnapshot = {
     asOf: new Date().toISOString(),
     source: "etrade",
     accountIdKey: accounts.join(","),
     positions,
     quotes,
+    earnings,
   };
   store.writeSnapshot(snapshot);
   return snapshot;
